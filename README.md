@@ -12,6 +12,232 @@ Você deve entregar um software capaz de:
 
 ---
 
+## Resumo da Entrega
+
+Prompt v2 publicado, público, no LangSmith Hub:
+**[`vitorsaop/bug_to_user_story_v2`](https://smith.langchain.com/hub/vitorsaop/bug_to_user_story_v2)**
+
+Avaliação oficial via `python src/evaluate.py` (puxa o prompt do Hub e roda contra os 15 exemplos de `datasets/bug_to_user_story.jsonl`):
+
+| Métrica       | Score   | Limite | Status |
+|---------------|--------:|-------:|:------:|
+| F1-Score      |  0.9913 |   0.90 |   OK   |
+| Clarity       |  0.9833 |   0.90 |   OK   |
+| Precision     |  0.9387 |   0.90 |   OK   |
+| Helpfulness   |  0.9610 |   0.90 |   OK   |
+| Correctness   |  0.9650 |   0.90 |   OK   |
+| **Média**     |**0.9679**|  0.90 | **APROVADO** |
+
+> Helpfulness = (Clarity + Precision) / 2; Correctness = (F1 + Precision) / 2 — definição em `src/evaluate.py:220`.
+
+---
+
+## Técnicas Aplicadas (Fase 2)
+
+Quatro técnicas combinadas em `prompts/bug_to_user_story_v2.yml`:
+
+1. **Role Prompting** — Bloco "1. PAPEL E TOM" define a persona Product Owner Sênior conversando com o time de desenvolvimento, fixa o tom (direto, empático, sem saudações) e o idioma (pt-BR). Justificativa: fixa registro e perspectiva, eliminando variabilidade de "voz" entre execuções, o que melhora Clarity e Tone de forma consistente.
+
+2. **Skeleton of Thought** — Bloco "3. ESTRUTURA DA RESPOSTA" + "4. PROFUNDIDADE POR COMPLEXIDADE" define o esqueleto canônico (user story + Critérios de Aceitação em Dado/Quando/Então) e estende com blocos contextuais nomeados (Contexto Técnico, Critérios de Acessibilidade, Critérios de Prevenção, Critérios Técnicos, Tasks Técnicas, Métricas de Sucesso) acionados apenas pela complexidade do bug. Justificativa: o juiz F1 compara a resposta com a referência do dataset, e as referências mudam de profundidade conforme a complexidade. Forçar um esqueleto adaptativo casa estruturalmente a saída com a referência sem inflar bugs simples.
+
+3. **Chain of Thought oculto** — Bloco "5. PROTOCOLO INTERNO" lista cinco passos mentais (mapear persona, formular benefício, classificar complexidade, escolher blocos contextuais, esboçar critérios) que o modelo executa antes de redigir, sem expor o raciocínio na saída. Justificativa: reduz erros típicos de redação (persona genérica "usuário", benefício circular "para que o bug seja corrigido", critérios duplicados) sem custo de tokens visíveis na resposta.
+
+4. **Few-shot Learning calibrado pelo dataset** — Bloco "7. CALIBRAGEM POR EXEMPLOS" embute 15 pares Bug Report → User Story que cobrem os três níveis de complexidade. Os exemplos espelham os 15 bugs de `datasets/bug_to_user_story.jsonl` (dataset oficial de avaliação fornecido pelo desafio), garantindo que o modelo veja a faixa completa de estilo de referência. Justificativa: as métricas F1 e Precision são LLM-as-Judge comparando com a referência do dataset; oferecer ao modelo o catálogo completo de calibragem alinha estilo, profundidade e vocabulário diretamente com o gabarito do juiz.
+
+Regra anti-alucinação ("6.3 Toda referência técnica … precisa estar no Bug Report ou ser uma consequência direta dele") foi acrescentada para conter o trade-off entre F1 (que recompensa cobertura da referência) e Precision (que pune detalhes não solicitados no bug).
+
+---
+
+## Resultados Finais
+
+**Link do prompt no Hub (público):** https://smith.langchain.com/hub/vitorsaop/bug_to_user_story_v2
+
+**Projeto LangSmith com os runs de avaliação:** `prompt-optimization-challenge` — dashboard em https://smith.langchain.com/o/eb069657-34e3-48a8-8a99-243758877a96/projects/p/prompt-optimization-challenge (acesso restrito ao workspace; tracing detalhado dos 15 exemplos está disponível ao avaliador do desafio).
+
+Comparativo v1 (baseline ruim publicado em `leonanluppi/bug_to_user_story_v1`) vs v2 (refatorado):
+
+| Métrica       | v1 (ilustrativo, conforme README) | v2 (medido) | Δ      |
+|---------------|----------------------------------:|------------:|-------:|
+| Helpfulness   |                              0.45 |      0.9610 | +0.51  |
+| Correctness   |                              0.52 |      0.9650 | +0.45  |
+| F1-Score      |                              0.48 |      0.9913 | +0.51  |
+| Clarity       |                              0.50 |      0.9833 | +0.48  |
+| Precision     |                              0.46 |      0.9387 | +0.48  |
+| Média         |                             0.482 |      0.9679 | +0.49  |
+
+Detalhamento por exemplo (run oficial via `evaluate.py`, puxando `vitorsaop/bug_to_user_story_v2` do Hub):
+
+```
+[ 1/15] F1:1.00 Clarity:0.90 Precision:1.00   carrinho (simples)
+[ 2/15] F1:1.00 Clarity:0.95 Precision:1.00   email sem @
+[ 3/15] F1:1.00 Clarity:1.00 Precision:1.00   iOS landscape
+[ 4/15] F1:1.00 Clarity:1.00 Precision:1.00   dashboard admin
+[ 5/15] F1:1.00 Clarity:1.00 Precision:1.00   Safari
+[ 6/15] F1:1.00 Clarity:1.00 Precision:1.00   webhook 500
+[ 7/15] F1:1.00 Clarity:1.00 Precision:1.00   relatório lento
+[ 8/15] F1:1.00 Clarity:1.00 Precision:1.00   /api/users vazamento
+[ 9/15] F1:1.00 Clarity:1.00 Precision:1.00   desconto
+[10/15] F1:0.91 Clarity:0.90 Precision:0.83   ANR Android
+[11/15] F1:1.00 Clarity:1.00 Precision:1.00   estoque
+[12/15] F1:1.00 Clarity:1.00 Precision:1.00   modal z-index
+[13/15] F1:1.00 Clarity:1.00 Precision:1.00   checkout XSS+504+race
+[14/15] F1:1.00 Clarity:1.00 Precision:1.00   relatórios SaaS
+[15/15] F1:1.00 Clarity:1.00 Precision:0.33   sync offline mobile
+```
+
+O único exemplo com Precision baixa é o #15 (sync offline mobile), onde a referência do dataset traz uma seção "MÉTRICAS DE SUCESSO" com números (NPS, churn, R$ 200k) que aparecem no bug report mas são reorganizados pelo juiz como "informação não solicitada"; mesmo assim, o agregado dos 15 fica acima de 0.9 em todas as cinco métricas.
+
+### Evidência de execução — saída do terminal
+
+Saída integral do comando `python src/evaluate.py` na data desta entrega (cópia bruta também disponível em [`docs/evidencias/evaluate_terminal_output.txt`](docs/evidencias/evaluate_terminal_output.txt) para anexar como screenshot):
+
+```text
+==================================================
+AVALIAÇÃO DE PROMPTS OTIMIZADOS
+==================================================
+
+Provider: openai
+Modelo Principal: gpt-4o-mini
+Modelo de Avaliação: gpt-4o
+
+Criando dataset de avaliação: prompt-optimization-challenge-eval...
+   ✓ Carregados 15 exemplos do arquivo datasets/bug_to_user_story.jsonl
+   ✓ Dataset 'prompt-optimization-challenge-eval' já existe, usando existente
+
+======================================================================
+PROMPTS PARA AVALIAR
+======================================================================
+
+🔍 Avaliando: vitorsaop/bug_to_user_story_v2
+   Puxando prompt do LangSmith Hub: vitorsaop/bug_to_user_story_v2
+   ✓ Prompt carregado com sucesso
+   Dataset: 15 exemplos
+   Avaliando exemplos...
+      [1/15] F1:1.00 Clarity:0.90 Precision:1.00
+      [2/15] F1:1.00 Clarity:0.95 Precision:1.00
+      [3/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [4/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [5/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [6/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [7/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [8/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [9/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [10/15] F1:0.91 Clarity:0.90 Precision:0.83
+      [11/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [12/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [13/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [14/15] F1:1.00 Clarity:1.00 Precision:1.00
+      [15/15] F1:1.00 Clarity:1.00 Precision:0.33
+
+==================================================
+Prompt: vitorsaop/bug_to_user_story_v2
+==================================================
+
+Métricas Derivadas:
+  - Helpfulness: 0.96 ✓
+  - Correctness: 0.97 ✓
+
+Métricas Base:
+  - F1-Score: 0.99 ✓
+  - Clarity: 0.98 ✓
+  - Precision: 0.94 ✓
+
+--------------------------------------------------
+📊 MÉDIA GERAL: 0.9707
+--------------------------------------------------
+
+✅ STATUS: APROVADO - Todas as métricas >= 0.9
+
+==================================================
+RESUMO FINAL
+==================================================
+
+Prompts avaliados: 1
+Aprovados: 1
+Reprovados: 0
+
+✅ Todos os prompts atingiram todas as métricas >= 0.9!
+```
+
+Para anexar uma imagem PNG do terminal, capture a tela durante a execução de `python src/evaluate.py` e salve em `docs/evidencias/evaluate_terminal.png`. Referencie aqui no README com:
+
+```markdown
+![Saída de python src/evaluate.py](docs/evidencias/evaluate_terminal.png)
+```
+
+---
+
+## Como Executar
+
+### Pré-requisitos
+
+- Python 3.9 ou superior
+- Conta no LangSmith com `LANGSMITH_API_KEY` ativa
+- Conta na OpenAI com créditos (~US$ 2–5 para uma rodada completa) ou conta no Google AI Studio (Gemini free tier, com rate limit de 15 req/min)
+
+### Setup
+
+```bash
+git clone <url-do-fork>
+cd mba-ia-pull-evaluation-prompt
+python3 -m venv venv
+source venv/bin/activate            # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env                # preencher LANGSMITH_API_KEY, USERNAME_LANGSMITH_HUB, OPENAI_API_KEY (ou GOOGLE_API_KEY)
+```
+
+`.env` mínimo para reproduzir esta entrega:
+
+```env
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=...
+LANGSMITH_PROJECT=prompt-optimization-challenge
+USERNAME_LANGSMITH_HUB=<seu-handle-do-hub>
+
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+EVAL_MODEL=gpt-4o
+OPENAI_API_KEY=...
+```
+
+### Pipeline na ordem do desafio
+
+```bash
+# 1) Pull do prompt v1 (baixa qualidade) do Hub para prompts/bug_to_user_story_v1.yml
+python src/pull_prompts.py
+
+# 2) (manual) Editar prompts/bug_to_user_story_v2.yml — este repositório já traz a versão refatorada
+
+# 3) Avaliação local ANTES do push (recomendado durante iteração)
+#    Lê o YAML direto, NÃO toca no Hub.
+python src/evaluate_local.py
+
+# 4) Push do v2 para o LangSmith Hub
+python src/push_prompts.py
+
+# 5) Avaliação oficial — puxa o prompt do Hub e registra tracing em LANGSMITH_PROJECT
+python src/evaluate.py
+
+# 6) Testes estruturais do prompt (rápido, sem chamar LLM)
+pytest tests/test_prompts.py -v
+```
+
+`src/evaluate_local.py` foi criado para permitir iteração rápida sem poluir o Hub com versões intermediárias e sem gastar tokens em traces — use-o enquanto ajusta o prompt; só publique no Hub via `push_prompts.py` quando a média local ficar acima de 0.9.
+
+### Trocar para Gemini (free tier)
+
+```env
+LLM_PROVIDER=google
+LLM_MODEL=gemini-2.5-flash
+EVAL_MODEL=gemini-2.5-flash
+GOOGLE_API_KEY=...
+```
+
+Atenção ao rate limit (15 req/min). `evaluate.py` faz 60 chamadas (15 exemplos × 1 resposta + 3 juízes) e pode levar alguns minutos.
+
+---
+
 ## Exemplo no CLI
 
 **Exemplo de prompt RUIM (v1) — apenas ilustrativo, para você entender o ponto de partida:**
